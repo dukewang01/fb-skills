@@ -34,13 +34,15 @@ metadata:
 typst --version    # typst 0.15.1
 ```
 
-### ⭐ 中文字体（两件事都要做，少一件就没字或报警告）
+### ⭐ 中文字体（三件事都要做，少一件就没字或报警告）
 
 ```bash
 # 1) 字体家族名是 "Noto Sans CJK JP" —— 不是 SC！
-typst fonts                     # 只看得到 4 个内置西文字体
+typst fonts                     # 只看得到内置西文字体
 # 2) 必须用 --font-path 显式指过去（typst 不走 fontconfig）
 typst compile --font-path ~/.hermes/fonts a.typ a.pdf
+# 3) ⭐ 用 `typst fonts --font-path ...` 的输出为准，不要用 fontTools 读出的名字
+typst fonts --font-path ~/.hermes/fonts
 ```
 
 ```typst
@@ -49,6 +51,42 @@ typst compile --font-path ~/.hermes/fonts a.typ a.pdf
 
 > 写 `"Noto Sans CJK SC"` 只会得到 `warning: unknown font family`，
 > 虽然靠回退仍能出字，但字体匹配不确定 —— **写 JP 那个真名，得到零警告**。
+
+### ⭐⭐ 字重：用 `weight:`，不要拼进字体名
+
+**两套工具给的家族名不一样，以 `typst fonts` 为准。**
+
+```
+fontTools 读 name 表 → 每个字重是独立家族
+  Noto Sans SC / Noto Sans SC Thin / Noto Sans SC Light / Noto Sans SC Medium / ...
+
+typst fonts 的实际输出 → 字重被合并回同一家族（按排版家族名 ID 16）
+  Noto Sans SC / Noto Serif SC / LXGW WenKai / Noto Sans Mono CJK SC / Smiley Sans / ...
+```
+
+```typst
+font: "Noto Sans SC Medium"                        // ✗ unknown font family
+font: "Noto Sans SC", weight: "medium"              // ✓
+```
+
+可用 weight：`thin` `extralight` `light` `regular` `medium` `semibold` `bold` `extrabold` `black`。
+
+> ⚠️ **字重差异在大字号才看得出来**。样张实测：15pt 时 Thin/Light/DemiLight
+> 三档几乎分不出。**小字别指望字重拉层次，用颜色和间距**。
+
+### 本机字体清单（2026-10-12 装，全部免费商用）
+
+```
+Noto Sans SC           黑体，weight: thin→black 全字重  → 通用正文/标题
+Noto Serif SC          宋体，weight: extralight→black   → 报告正文/正式文件
+Noto Sans Mono CJK SC  等宽中文                          → 数据对齐/代码/表格
+LXGW WenKai            霞鹜文楷，weight: regular|medium   → 中式物料/菜单/温情文案
+LXGW WenKai Mono       文楷等宽                          → 中式代码感
+Smiley Sans            得意黑（斜体设计）                → 海报主标
+Noto Sans CJK JP       原有那个（旧文件继续可用）
+```
+
+字体文件在 `~/.hermes/fonts/`，共 22 个 / 271 MB。
 
 ## 命令
 
@@ -145,6 +183,20 @@ cp out.pdf "$DEST/"                        # 成功才拷
 
 Typst 是标记语言：`\` 断行，空行分段；`[...]` 内是内容块，
 `#` 开头才是代码。**块内调用函数要带 `#`**。
+
+### 6. ⭐ 字体家族名以 `typst fonts` 为准，不信 fontTools
+
+`fontTools` 读 name 表得到的是**每个字重一个家族**；`typst` 按排版家族名合并。
+两者不一致时**永远信 typst**。不确定就先跑：
+
+```bash
+typst fonts --font-path ~/.hermes/fonts | grep -i noto
+```
+
+### 7. 财务/数据表格里的数字要右对齐
+
+排版美观与「数字硬规则」都要满足：**金额、比率、间数一律右对齐**，
+标签左对齐。等宽字体（`Noto Sans Mono CJK SC`）能保证小数点对齐。
 
 ## 自检清单（发出去之前）
 

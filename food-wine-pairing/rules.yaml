@@ -1,0 +1,268 @@
+# rules.yaml — food-wine-pairing 机器可读规则层 v1.0
+# 用途：酒单批量体检、自动出配酒方案、交付前自检。阈值均为经验值，各店可在 store_overrides 下覆盖。
+# 纪律：本文件是 SKILL.md 一节/五节/十一节的**可执行版本**；两者冲突时以本文件为准，并回头改 SKILL.md。
+
+version: "1.0"
+skill: food-wine-pairing
+updated: "2026-10-12"
+
+meta:
+  principle: "单宁只跟脂肪做朋友 —— 遇鲜、辣、酸、甜全是减分项"
+  layers:
+    knowledge: "判断轴 / 菜系目录 / 非葡萄酒 / 宴席节奏 / 单杯结构 / 话术（不随店变）"
+    config: "本店酒单位置、成本列口径、可单杯款、杯型库存（随店变，用时先核）"
+  never_mix_stores: true          # 多店酒单绝不混用
+  external_strip_columns:         # 对外 / 公开前的必剔列（不区分大小写，含模糊匹配）
+    - 成本
+    - 成本率
+    - 进货价
+    - 经销商
+    - 供应商
+    - 毛利率
+
+# ─────────────────────────────────────────────
+# 一、判断轴（9 条）—— 机器取值口径
+# 取值统一：none / low / medium / high
+# ─────────────────────────────────────────────
+axes:
+  dish:
+    - id: fat
+      label: 脂肪量
+      high: [牛排/眼肉, 西冷, 鸭, 鹅肝, 五花肉, 烧腩, 芝士, 奶油, 黄油]
+      low:  [白身鱼, 蔬菜, 贝类, 海参, 花胶, 清蒸]
+      effect: "高 → 可上单宁/重酒；低 → 轻酒"
+    - id: umami
+      label: 鲜味
+      high: [海参, 鲍鱼, 花胶, 鱼子酱, 虾, 蟹, 河鲜, 干贝, 香菇, 味噌, 酱油, 火腿, 鱼露, 海胆, 虾仁]
+      effect: "高 → 避单宁 → 清酒 / 干白 / 起泡"
+    - id: spicy
+      label: 辣度
+      high: [辣椒, 泡椒, 麻辣, 花椒, 剁椒, 咖喱, 芥末]
+      medium: [辣椒酱, 豆瓣酱, 黑胡椒, 姜, 蒜蓉, 孜然]
+      effect: "高 → 避高单宁 + 避高酒精 → 微甜/起泡/低度/啤酒"
+    - id: acid
+      label: 酸度
+      high: [醋, 番茄, 柠檬, 酸菜, 泡菜, 糖醋]
+      effect: "高 → 酒也要有酸或微甜"
+    - id: sweetness
+      label: 甜度
+      high: [蜜汁, 冰糖, 拔丝, 焦糖, 甜品, 蛋挞, 马拉糕, 流沙包, 奶黄]
+      effect: "高 → 酒必须比菜更甜，否则酒显苦"
+    - id: gelatin
+      label: 胶质 / 黏口感
+      high: [花胶, 海参, 鱼唇, 鱼肚, 蹄筋, 牛筋, 猪手, 鲍汁, 佛跳墙, 浓汤]
+      effect: "高 → 中重质感干白或轻中单宁红；不可按低脂推轻酒"
+  service:
+    - id: temp
+      label: 上酒温度
+    - id: order
+      label: 上酒顺序
+    - id: by_glass
+      label: 杯装 / 瓶装
+
+# ─────────────────────────────────────────────
+# 二、冲突裁决顺序（数字小 = 优先；先命中先收口）
+# ─────────────────────────────────────────────
+adjudication_order:
+  - {rank: 0, axis: forbidden,      note: "硬规则，命中即排除，不再判其他轴"}
+  - {rank: 1, axis: umami,          note: "最容易被单宁毁掉"}
+  - {rank: 2, axis: spicy,          note: "放大一切错误"}
+  - {rank: 3, axis: dish_sweetness, note: "甜品必须配更甜的酒，压倒脂肪"}
+  - {rank: 4, axis: gelatin,        note: "修正「低脂=轻酒」误判"}
+  - {rank: 5, axis: fat,            note: "前四项不命中时的主判据"}
+  - {rank: 6, axis: service,        note: "只改呈现，不改选酒结论"}
+intersection_rule:
+  when: ["umami:high", "spicy:high"]
+  answer: [微甜起泡, 半干雷司令, 啤酒, 清酒]
+  note: "取交集：既避单宁又避高酒精"
+
+# ─────────────────────────────────────────────
+# 三、违例规则（可批量体检一份酒单 / 一份推荐方案）
+# severity: high = 必改；medium = 需确认；low = 提示
+# ─────────────────────────────────────────────
+rules:
+  - id: R-FORBID-TANNIN-UMAMI
+    severity: high
+    group: forbidden
+    when: {wine_tannin: [medium, high], dish_umami: high}
+    why: 单宁遇鲜出金属腥
+    fix: 换干白 / 清酒 / 起泡 / 半干雷司令
+  - id: R-FORBID-TANNIN-SPICY
+    severity: high
+    group: forbidden
+    when: {wine_tannin: [medium, high], dish_spicy: high}
+    why: 单宁放大辣感并发涩
+    fix: 半干雷司令 / 桃红 / 起泡 / 啤酒
+  - id: R-FORBID-HIGHALC-SPICY
+    severity: high
+    group: forbidden
+    when: {wine_abv_gte: 14.0, dish_spicy: [medium, high]}
+    why: 高酒精放大辣与灼感
+    fix: 低度酒 / 起泡 / 啤酒 / 清酒
+  - id: R-FORBID-SPIRIT-SPICY
+    severity: high
+    group: forbidden
+    when: {wine_class: [烈酒, 威士忌, 白酒], dish_spicy: high}
+    why: 烈酒 × 辣 = 灼上加灼
+    fix: 啤酒 / 清酒 / 半干白
+  - id: R-FORBID-DRY-DESSERT
+    severity: high
+    group: forbidden
+    when: {wine_sweetness: [dry], dish_sweetness: high}
+    why: 干酒配甜品显苦
+    fix: 甜白 / 冰酒 / 波特 / Moscato d'Asti
+  - id: R-FORBID-RED-RIVERFISH
+    severity: high
+    group: forbidden
+    when: {wine_class: 红葡萄酒, dish_class: [河鲜, 白身鱼, 清蒸鱼]}
+    why: 河鲜属鲜，红葡萄酒单宁出金属腥
+    fix: 干白 / 清酒 / 桃红
+  - id: R-FORBID-TANNIN-SWEETSAUCE
+    severity: medium
+    group: forbidden
+    when: {wine_tannin: high, dish_sauce: [蜜汁, 糖醋, 叉烧芡, 拔丝]}
+    why: 焦糖化的糖遇重单宁发苦
+    fix: 果味主导 + 轻单宁红；或半干雷司令
+  - id: R-WARN-BUBBLES-MAIN
+    severity: medium
+    group: advisory
+    when: {wine_class: [香槟, 起泡], dish_role: 主菜, dish_class: 红肉}
+    why: 香槟不当红肉主菜主力
+    fix: 主菜换轻/中单宁红，香槟留作开场
+  - id: R-WARN-HEAVYOAK-SASHIMI
+    severity: medium
+    group: advisory
+    when: {wine_oak: high, dish_class: [刺身, 寿司, 清蒸]}
+    why: 重桶盖住细节
+    fix: 干型雷司令 / 纯米大吟酿
+  - id: R-WARN-SALAD-VINAIGRETTE
+    severity: medium
+    group: advisory
+    when: {dish_acid: high, wine_tannin: [medium, high]}
+    why: 醋汁打单宁
+    fix: 长相思 / 干雷司令
+  - id: R-INFO-MIXEDPLATE
+    severity: low
+    group: advisory
+    when: {dish_is_platter: true, dish_flavor_spread: [medium, high]}
+    why: 拼盘一盘多味，单款难以覆盖
+    fix: 按最甜最油的一件定酒，或上一白一红两杯
+  - id: R-INFO-COVERAGE
+    severity: low
+    group: advisory
+    when: {menu_coverage_lt: 0.50}
+    why: 官方配酒覆盖率过低，客人问起来接不住
+    fix: 补配酒指针，或用本文件自动生成建议后人工定稿
+
+# ─────────────────────────────────────────────
+# 四、价格口径（单杯）
+# ─────────────────────────────────────────────
+price:
+  by_glass:
+    formula: "单杯价 = 瓶价 / 杯数 * (1.3 ~ 1.5)"
+    equivalent_ratio: {band: [3.3, 4.6], metric: "瓶价 / 杯价"}
+    cups:
+      wine_750ml_at_150ml: 5
+      house_practice_max: 6          # 每杯约 125ml
+      sparkling: 5                   # 气泡损耗
+      sweet_75ml: [8, 10]
+      rice_wine_huangjiu: [5, 8]
+      spirit_700ml: [25, 30]         # 烈酒不适用 5 杯公式
+      beer: bottle
+    applicable_to: [葡萄酒, 起泡酒]
+    not_applicable_to: [烈酒, 威士忌, 白酒, 啤酒, 茶饮]
+    type: soft_reference               # 毛利参考线，不是合规红线
+    below_band_action: "标注为主推 / 引流款并写明理由，不得默默放过"
+    koujing_must_be_declared:         # 交付时须写明，否则两方算出的越界数不一致
+      - 杯价是否含服务费
+      - 单杯杯量（125 / 150 ml）
+      - 哪些款可单杯
+  open_bottle_critical_point:
+    formula: "单杯价 >= 瓶价 / min(瓶容量 / 杯量, 可售天数 * 日均杯数)"
+    else: "不要做单杯，改整瓶或整壶售卖"
+
+shelf_life_after_open_days:
+  起泡/香槟: 1
+  清爽干白: 2
+  过桶霞多丽/半干白: 3
+  轻红: 2
+  中重红: 4
+  甜酒: 10
+  加强酒: 21
+  清酒: 3        # 必须冷藏
+  黄酒: 10
+  烈酒: 180      # 数月
+
+# ─────────────────────────────────────────────
+# 五、宴席节奏与台上量
+# ─────────────────────────────────────────────
+banquet:
+  pour_sequence: [起泡/干白开场, 白配清蒸白肉海鲜蔬菜燕鲍参, 红一轻单宁配禽猪蘑菇烧味, 红二重单宁配红肉牛排, 甜酒收尾]
+  wine_count_by_courses: {"<=4": 2, "5-8": 3, "formal_max": 4}
+  per_wine_glasses_per_person: 1.5     # 1 杯 + 0.5 续杯余量
+  total_glasses_formula: "款数 * 人数 * 1.5 * 1.1"
+  service: {max_glasses_per_runner_round: 15, runners_needed: "ceil(总杯数 / 15 / 款数)"}
+  stock_rule: "杯型库存 < 所需 → 优先减款数，不减每款杯数"
+  temp_prep: {sparkling_sake: 冰桶位, heavy_red: "提前 30-60 min 出窖回温"}
+  glass_capacity_rule: "杯型容量 >= 单杯量"
+
+# ─────────────────────────────────────────────
+# 六、输入数据校验（拿到文件先跑）
+# ─────────────────────────────────────────────
+data_intake:
+  required_columns:
+    menu: [菜名, 英文名, 主料, 味型, 菜段, 是否位上]
+    wine: [酒名原文, 酒种, 产地或品种, 杯价, 瓶价, 可否单杯]
+    cost_internal: [成本, 成本率, 经销商]
+    support: [杯型, 容量, 库存]
+  parse_pitfalls:
+    - id: P1
+      name: 单元格内换行
+      symptom: 菜名/英文名/主料在同一单元格内用换行分隔，按 / 或 、切会全不命中
+      action: "先按 \\n 切，再按 / 兜底"
+    - id: P2
+      name: 两行一款
+      symptom: 酒单成本表为「英文名行 + 中文名/规格行」交错
+      action: "按行对解析，不按列直读"
+    - id: P3
+      name: 合并单元格 / DISPIMG
+      symptom: 菜名落在上一行，行与菜不是一对一
+      action: "逐行建块，先合并再解析"
+    - id: P4
+      name: 指针死链
+      symptom: 搭配菜品列出现占位符 / 已下架菜 / 名称对不上
+      action: "分成 精确 / 近似 / 多义 / 悬挂 四类逐条列明"
+    - id: P5
+      name: 跨表重复
+      symptom: 同一道点心同时出现在「点心」与「主食&点心」
+      action: "去重后再算覆盖率"
+    - id: P6
+      name: 三源价格不一致
+      symptom: 内部表 / 客人版 / 成本表 同款价不同
+      action: "两两比对，逐条列差异"
+
+# ─────────────────────────────────────────────
+# 七、交付前自检清单（机器可判的写触发条件）
+# ─────────────────────────────────────────────
+checklists:
+  pre_delivery:
+    - {no: 1, item: 名称悬挂为 0, check: "每条配酒指针命中现行菜单菜名；近似/多义已人工确认"}
+    - {no: 2, item: 价格三源一致, check: "内部/客人/成本三表两两比对，无未解释差异"}
+    - {no: 3, item: 成本列已剔, check: "对外版无 成本/成本率/经销商 列（见表 external_strip_columns）"}
+    - {no: 4, item: 杯型可落实, check: "推荐酒款的杯型存在于杯型速查且容量 >= 单杯量"}
+    - {no: 5, item: 杯具库存够, check: "款数*人数*1.5*1.1 <= 库存；瓶颈杯型单独核"}
+    - {no: 6, item: 硬规则零冲突, check: "group=forbidden 的规则命中数 = 0"}
+    - {no: 7, item: 单杯结构完整, check: "白一清爽一丰满、红一轻一重；标出可单杯款"}
+    - {no: 8, item: 单杯毛利有口径, check: "写明服务费/杯量/杯数；越界款给理由"}
+    - {no: 9, item: 无酒精方案齐, check: ">=3 个可选项 + 上桌形态 + 收费口径"}
+    - {no: 10, item: 覆盖率已报, check: "报出有方案菜数 / 总菜数 与缺口菜段"}
+    - {no: 11, item: 口径行齐全, check: "酒名酒标原文；价格标「以现行酒单为准」；款数节奏有依据"}
+    - {no: 12, item: 对外脱敏, check: "内部编号/门店信息/成本已清"}
+
+# ─────────────────────────────────────────────
+# 八、本店覆盖（各店自行填写，勿写回知识层）
+# ─────────────────────────────────────────────
+store_overrides:
+  store_id: null
+  checked_on: null
+  notes: "杯价是否含服务费 / 单杯杯量 / 可单杯款 / 停推品牌 —— 交付前确认并在此登记"

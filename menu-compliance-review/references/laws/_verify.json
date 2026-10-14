@@ -1,0 +1,23 @@
+{
+ "食品安全法": {
+  "articles": 154,
+  "max": 154,
+  "missing": [],
+  "expected": 154,
+  "chars": 30137
+ },
+ "广告法": {
+  "articles": 75,
+  "max": 75,
+  "missing": [],
+  "expected": 75,
+  "chars": 14245
+ },
+ "反不正当竞争法": {
+  "articles": 41,
+  "max": 41,
+  "missing": [],
+  "expected": 41,
+  "chars": 6072
+ }
+}

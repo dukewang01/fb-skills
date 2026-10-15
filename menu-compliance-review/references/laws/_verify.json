@@ -4,20 +4,43 @@
   "max": 154,
   "missing": [],
   "expected": 154,
-  "chars": 30137
+  "chars": 30137,
+  "count": 154,
+  "bytes": 88863,
+  "md5": "64dde9eeeb",
+  "verify": "条号连续性校验，中文数字按 零/十/百 解析，正则长度上限 6"
  },
  "广告法": {
   "articles": 75,
   "max": 75,
   "missing": [],
   "expected": 75,
-  "chars": 14245
+  "chars": 14245,
+  "count": 75,
+  "bytes": 41396,
+  "md5": "552624ae8e",
+  "verify": "条号连续性校验，中文数字按 零/十/百 解析，正则长度上限 6"
  },
  "反不正当竞争法": {
   "articles": 41,
   "max": 41,
   "missing": [],
   "expected": 41,
-  "chars": 6072
+  "chars": 6072,
+  "count": 41,
+  "bytes": 17758,
+  "md5": "d0c18c0244",
+  "verify": "条号连续性校验，中文数字按 零/十/百 解析，正则长度上限 6"
+ },
+ "消费者权益保护法": {
+  "articles": 63,
+  "count": 63,
+  "missing": [],
+  "bytes": 24012,
+  "md5": "20941824d6",
+  "source": "samr.gov.cn / scjgj.sh.gov.cn（两源互证，条号一致）",
+  "note": "2013 修正版，63 条",
+  "chars": 8290,
+  "verify": "条号连续性校验，中文数字按 零/十/百 解析，正则长度上限 6"
  }
 }
